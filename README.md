@@ -5,7 +5,7 @@ The module `bias_correction` consists of functions to perform bias correction of
 ### Installation
 
 ```
-pip install bias_correction
+pip install bias-correction
 ```
 ### Usage
 
