@@ -15,7 +15,7 @@ setup(
      license='MIT',
      py_modules=['bias_correction'],
      install_requires=[
-     "numpy", 'xarray'
+     "numpy", 'scipy', 'statsmodels'
      ],
      python_requires=">=3.6",
      setup_requires=['setuptools'],
