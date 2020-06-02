@@ -3,6 +3,16 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from scipy.stats import gamma, norm
 from scipy.signal import detrend
 
+'''
+module for bias corrections. 
+Available methods include:
+
+- basic_quantile
+- modified quantile
+- gamma_mapping
+- normal_mapping 
+'''
+
 def quantile_correction(obs_data, mod_data, sce_data, modified = True):
     cdf = ECDF(mod_data)
     p = cdf(sce_data)
@@ -111,7 +121,7 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     correction = pd.Series(correction, index=sce_data.index)
     return correction
 
-class bias_correction(object):
+class BiasCorrection(object):
     def __init__(self, obs_data, mod_data, sce_data):
         self.obs_data = obs_data
         self.mod_data = mod_data
