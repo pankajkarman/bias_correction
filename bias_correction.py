@@ -1,7 +1,9 @@
-import numpy as np, pandas as pd
+import numpy as np
+import pandas as pd
 from statsmodels.distributions.empirical_distribution import ECDF
 from scipy.stats import gamma, norm
 from scipy.signal import detrend
+import xarray as xr
 
 '''
 module for bias corrections. 
@@ -13,20 +15,20 @@ Available methods include:
 - normal_mapping 
 '''
 
-def quantile_correction(obs_data, mod_data, sce_data, modified = True):
+def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     cdf = ECDF(mod_data)
     p = cdf(sce_data) * 100
     cor = np.subtract(*[np.nanpercentile(x, p) for x in [obs_data, mod_data]])
-    mid = np.subtract(*[np.nanpercentile(x, 50) for x in [obs_data, mod_data]])
-    g = np.true_divide(*[np.nanpercentile(x, 50) for x in [obs_data, mod_data]])
-
-    iqr_obs_data = np.subtract(*np.nanpercentile(obs_data, [75, 25]))
-    iqr_mod_data = np.subtract(*np.nanpercentile(mod_data, [75, 25]))
-
-    f = np.true_divide(iqr_obs_data, iqr_mod_data)
-    corr = g*mid + f*(cor - mid)
     if modified:
-        return sce_data + corr
+        mid = np.subtract(*[np.nanpercentile(x, 50) for x in [obs_data, mod_data]])
+        g = np.true_divide(*[np.nanpercentile(x, 50) for x in [obs_data, mod_data]])
+
+        iqr_obs_data = np.subtract(*np.nanpercentile(obs_data, [75, 25]))
+        iqr_mod_data = np.subtract(*np.nanpercentile(mod_data, [75, 25]))
+
+        f = np.true_divide(iqr_obs_data, iqr_mod_data)
+        cor = g*mid + f*(cor - mid)
+        return sce_data + cor
     else:
         return sce_data + cor
 
@@ -61,7 +63,7 @@ def gamma_correction(obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshol
     mod_frequency = 1. * mod_raindays.shape[0] / mod_data.shape[0]
     sce_frequency = 1. * sce_raindays.shape[0] / sce_data.shape[0]
 
-    days_min = len(sce_data) * obs_frequency * sce_frequency / mod_frequency
+    days_min = len(sce_raindays) * sce_frequency / mod_frequency
 
     expected_sce_raindays = int(min(days_min, len(sce_data)))
 
@@ -75,8 +77,8 @@ def gamma_correction(obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshol
     else:
         initial = np.hstack((np.zeros(expected_sce_raindays - len(sce_raindays)), initial))
 
-    correction[sce_argsort[-expected_sce_raindays:]] = initial
-    correction = pd.Series(correction, index=sce_data.index)
+    correction[sce_argsort[:expected_sce_raindays]] = initial
+    #correction = pd.Series(correction, index=sce_data.index)
     return correction
 
 def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
@@ -118,7 +120,7 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     correction = np.zeros(sce_len)
     correction[sce_argsort] = xvals
     correction += sce_diff - sce_mean
-    correction = pd.Series(correction, index=sce_data.index)
+    #correction = pd.Series(correction, index=sce_data.index)
     return correction
 
 class BiasCorrection(object):
@@ -138,5 +140,59 @@ class BiasCorrection(object):
             corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = False)
         else:
             corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = True)
+        self.corrected = pd.Series(corrected, index=self.sce_data.index)
+        return self.corrected
+        
+class XBiasCorrection(object):
+    def __init__(self, obs_data, mod_data, sce_data, dim='time'):
+        self.obs_data = obs_data
+        self.mod_data = mod_data
+        self.sce_data = sce_data
+        self.dim = dim
+        #print(sce_data)
+
+    def correct(self, method = 'modified_quantile', \
+                lower_limit=0.1, cdf_threshold=0.9999999, \
+                vectorize=True, dask='parallelized'):
+        dtype = self._set_dtype()
+        dim = self.dim
+        if method == 'gamma_mapping':
+            corrected = xr.apply_ufunc(gamma_correction,\
+                                       self.obs_data, self.mod_data, self.sce_data,\
+                                       vectorize=vectorize, dask=dask,\
+                                       input_core_dims=[[dim],[dim], [dim]],\
+                                       output_core_dims=[[dim]], output_dtypes=[dtype],\
+                                       kwargs={'lower_limit':lower_limit, \
+                                               'cdf_threshold':cdf_threshold})
+        elif method == 'normal_mapping':
+            corrected = xr.apply_ufunc(normal_correction,\
+                                       self.obs_data, self.mod_data, self.sce_data,\
+                                       vectorize=vectorize, dask=dask,\
+                                       input_core_dims=[[dim],[dim], [dim]],\
+                                       output_core_dims=[[dim]], output_dtypes=[dtype],\
+                                       kwargs={'cdf_threshold':cdf_threshold})
+        elif method == 'basic_quantile':
+            corrected = xr.apply_ufunc(quantile_correction, 
+                           self.obs_data, self.mod_data, self.sce_data,
+                           vectorize=vectorize, dask=dask,\
+                           input_core_dims=[[dim],[dim], [dim]],
+                           output_core_dims=[[dim]], kwargs={'modified':False})
+        else:
+            corrected = xr.apply_ufunc(quantile_correction, 
+                           self.obs_data, self.mod_data, self.sce_data,
+                           vectorize=vectorize, dask=dask,\
+                           input_core_dims=[[dim],[dim], [dim]],
+                           output_core_dims=[[dim]],
+                           output_dtypes=[dtype], kwargs={'modified':True})
         self.corrected = corrected
         return self.corrected
+    
+    def _set_dtype(self):
+        aa = self.mod_data
+        if isinstance(aa, xr.Dataset):
+            dtype = aa[list(aa.data_vars)[0]].dtype
+            print('No `dtype` chosen. Input is Dataset. \
+            Defaults to %s' % dtype)
+        elif isinstance(aa, xr.DataArray):
+            dtype = aa.dtype
+        return dtype
