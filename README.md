@@ -7,6 +7,11 @@ The module `bias_correction` consists of functions to perform bias correction of
 ```
 pip install bias-correction
 ```
+
+## Documentation
+
+Latest documentation is available [here](https://pankajkarman.github.io/bias_correction/index.html).
+
 ### Usage
 
 `bias_correction` is easy to use. Just import:
