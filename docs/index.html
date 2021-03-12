@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.9.2" />
 <title>bias_correction API documentation</title>
-<meta name="description" content="" />
+<meta name="description" content="This library consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include [quantile …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
 <link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
@@ -22,11 +22,52 @@
 <h1 class="title">Module <code>bias_correction</code></h1>
 </header>
 <section id="section-intro">
+<p>This library consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include <a href="https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/joc.2168">quantile mapping</a>, <a href="https://www.sciencedirect.com/science/article/abs/pii/S0034425716302000?via%3Dihub">modified quantile mapping</a> , <a href="https://www.hydrol-earth-syst-sci.net/21/2649/2017/">scaled distribution mapping (Gamma and Normal Corrections)</a>. </p>
+<h3 id="installation">Installation</h3>
+<pre><code>pip install bias-correction
+</code></pre>
+<h3 id="usage">Usage</h3>
+<p><code><a title="bias_correction" href="#bias_correction">bias_correction</a></code> is easy to use. Just import:</p>
+<pre><code class="language-python">from bias_correction import BiasCorrection
+</code></pre>
+<p>Instantiate the bias correction class as:</p>
+<pre><code class="language-python">bc = BiasCorrection(reference, model, data_to_be_corrected)
+</code></pre>
+<p>Perform correction specifying the method to be used:</p>
+<pre><code class="language-python">corrected = bc.correct(method='gamma_mapping')
+</code></pre>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">import numpy as np
+<pre><code class="python">&#34;&#34;&#34;
+This library consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include [quantile mapping](https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/joc.2168), [modified quantile mapping](https://www.sciencedirect.com/science/article/abs/pii/S0034425716302000?via%3Dihub) , [scaled distribution mapping (Gamma and Normal Corrections)](https://www.hydrol-earth-syst-sci.net/21/2649/2017/). 
+
+### Installation
+
+```
+pip install bias-correction
+```
+
+### Usage
+
+`bias_correction` is easy to use. Just import:
+
+```python
+from bias_correction import BiasCorrection
+```
+Instantiate the bias correction class as:
+```python
+bc = BiasCorrection(reference, model, data_to_be_corrected)
+```
+
+Perform correction specifying the method to be used:
+```python
+corrected = bc.correct(method=&#39;gamma_mapping&#39;)
+```
+&#34;&#34;&#34;
+
+import numpy as np
 import pandas as pd
 from statsmodels.distributions.empirical_distribution import ECDF
 from scipy.stats import gamma, norm
@@ -554,7 +595,10 @@ class XBiasCorrection(object):
 <nav id="sidebar">
 <h1>Index</h1>
 <div class="toc">
-<ul></ul>
+<ul>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#usage">Usage</a></li>
+</ul>
 </div>
 <ul id="index">
 <li><h3><a href="#header-functions">Functions</a></h3>
