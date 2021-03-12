@@ -14,6 +14,9 @@ doc:
 	mv ./docs/$(PROJECT_DIR).html ./docs/index.html
 	rm -rf ./docs/$(PROJECT_DIR)
 	
+server:
+	pdoc --http : .
+	
 format:
 	@printf "Checking code style with black...\n"
 	black --check ${PROJECT_DIR} 
