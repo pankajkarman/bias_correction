@@ -14,6 +14,15 @@ doc:
 	mv ./docs/$(PROJECT_DIR).html ./docs/index.html
 	rm -rf ./docs/$(PROJECT_DIR)
 	
+install:
+	python setup.py install
+	
+pypi:
+	${PYTHON} setup.py clean --all
+	${PYTHON} setup.py rotate --match=.tar.gz,.whl,.egg,.zip --keep=0
+	${PYTHON} setup.py sdist bdist_wheel
+	twine upload --skip-existing dist/*
+	
 server:
 	pdoc --http : .
 	
@@ -31,3 +40,10 @@ black:  # Format code in-place using black.
 	black ${PROJECT_DIR}
 
 lint: format style  # Lint code using pydocstyle, black and pylint.
+
+clean: 
+	rm -rf ./build 
+	rm -rf ./dist 
+	rm -rf ./*-venv
+	rm -rf ./*egg* 
+	rm -rf ./__pycache__

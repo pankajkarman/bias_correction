@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
      name='bias_correction',
-     version='0.2',
+     version='0.3',
      description='python library for bias_correction',
      long_description=long_description,
      long_description_content_type='text/markdown',
@@ -15,7 +15,7 @@ setup(
      license='MIT',
      py_modules=['bias_correction'],
      install_requires=[
-     "numpy", 'scipy', 'statsmodels'
+     "numpy", 'scipy', 'pandas', 'statsmodels', 'xarray'
      ],
      python_requires=">=3.6",
      setup_requires=['setuptools'],
