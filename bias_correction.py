@@ -164,9 +164,14 @@ class BiasCorrection(object):
             corrected = normal_correction(self.obs_data, self.mod_data, self.sce_data, \
                                                       cdf_threshold=cdf_threshold)
         elif method == 'basic_quantile':
-            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = False)
+            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified=False)
+            
+        elif method == 'modified_quantile':
+            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified=True)
+                        
         else:
-            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = True)
+            raise Exception("Specify correct method for bias correction.") 
+            
         self.corrected = pd.Series(corrected, index=self.sce_data.index)
         return self.corrected
         
@@ -204,13 +209,16 @@ class XBiasCorrection(object):
                            vectorize=vectorize, dask=dask,\
                            input_core_dims=[[dim],[dim], [dim]],
                            output_core_dims=[[dim]], kwargs={'modified':False})
-        else:
+                           
+        elif method == 'modified_quantile':
             corrected = xr.apply_ufunc(quantile_correction, 
                            self.obs_data, self.mod_data, self.sce_data,
                            vectorize=vectorize, dask=dask,\
                            input_core_dims=[[dim],[dim], [dim]],
-                           output_core_dims=[[dim]],
-                           output_dtypes=[dtype], kwargs={'modified':True})
+                           output_core_dims=[[dim]], kwargs={'modified':True})
+                           
+        else:
+            raise Exception("Specify correct method for bias correction.") 
         self.corrected = corrected
         return self.corrected
     
