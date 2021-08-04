@@ -10,7 +10,7 @@ SHELL = bash
 
 
 doc:
-	pdoc -f --html $(PROJECT_DIR) --output-dir docs
+	pdoc -f --html $(PROJECT_NAME).py --output-dir docs
 	mv ./docs/$(PROJECT_DIR).html ./docs/index.html
 	rm -rf ./docs/$(PROJECT_DIR)
 	
@@ -28,7 +28,7 @@ server:
 	
 format:
 	@printf "Checking code style with black...\n"
-	black --check ${PROJECT_DIR} 
+	black --check ${PROJECT_NAME}.py 
 	@printf "\033[1;34mBlack passes!\033[0m\n\n"
 
 style:

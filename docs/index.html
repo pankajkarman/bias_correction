@@ -74,7 +74,7 @@ from scipy.stats import gamma, norm
 from scipy.signal import detrend
 import xarray as xr
 
-&#39;&#39;&#39;
+&#34;&#34;&#34;
 module for bias corrections. 
 Available methods include:
 
@@ -82,7 +82,8 @@ Available methods include:
 - modified quantile
 - gamma_mapping
 - normal_mapping 
-&#39;&#39;&#39;
+&#34;&#34;&#34;
+
 
 def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     cdf = ECDF(mod_data)
@@ -96,14 +97,21 @@ def quantile_correction(obs_data, mod_data, sce_data, modified=True):
         iqr_mod_data = np.subtract(*np.nanpercentile(mod_data, [75, 25]))
 
         f = np.true_divide(iqr_obs_data, iqr_mod_data)
-        cor = g*mid + f*(cor - mid)
+        cor = g * mid + f * (cor - mid)
         return sce_data + cor
     else:
         return sce_data + cor
 
-def gamma_correction(obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999):
-    obs_raindays, mod_raindays, sce_raindays = [x[x &gt;= lower_limit] for x in [obs_data, mod_data, sce_data]]
-    obs_gamma, mod_gamma, sce_gamma = [gamma.fit(x) for x in [obs_raindays, mod_raindays, sce_raindays]]
+
+def gamma_correction(
+    obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999
+):
+    obs_raindays, mod_raindays, sce_raindays = [
+        x[x &gt;= lower_limit] for x in [obs_data, mod_data, sce_data]
+    ]
+    obs_gamma, mod_gamma, sce_gamma = [
+        gamma.fit(x) for x in [obs_raindays, mod_raindays, sce_raindays]
+    ]
 
     obs_cdf = gamma.cdf(np.sort(obs_raindays), *obs_gamma)
     mod_cdf = gamma.cdf(np.sort(mod_raindays), *mod_gamma)
@@ -113,24 +121,33 @@ def gamma_correction(obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshol
     mod_cdf[mod_cdf &gt; cdf_threshold] = cdf_threshold
     sce_cdf[sce_cdf &gt; cdf_threshold] = cdf_threshold
 
-    obs_cdf_intpol = np.interp(np.linspace(1, len(obs_raindays), len(sce_raindays)),
-                               np.linspace(1, len(obs_raindays), len(obs_raindays)),
-                               obs_cdf)
+    obs_cdf_intpol = np.interp(
+        np.linspace(1, len(obs_raindays), len(sce_raindays)),
+        np.linspace(1, len(obs_raindays), len(obs_raindays)),
+        obs_cdf,
+    )
 
-    mod_cdf_intpol = np.interp(np.linspace(1, len(mod_raindays), len(sce_raindays)),
-                               np.linspace(1, len(mod_raindays), len(mod_raindays)),
-                               mod_cdf)
+    mod_cdf_intpol = np.interp(
+        np.linspace(1, len(mod_raindays), len(sce_raindays)),
+        np.linspace(1, len(mod_raindays), len(mod_raindays)),
+        mod_cdf,
+    )
 
-    obs_inverse, mod_inverse, sce_inverse = [1. / (1. - x) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]]
+    obs_inverse, mod_inverse, sce_inverse = [
+        1.0 / (1.0 - x) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]
+    ]
 
-    adapted_cdf = 1 - 1. / (obs_inverse * sce_inverse / mod_inverse)
-    adapted_cdf[adapted_cdf &lt; 0.] = 0.
+    adapted_cdf = 1 - 1.0 / (obs_inverse * sce_inverse / mod_inverse)
+    adapted_cdf[adapted_cdf &lt; 0.0] = 0.0
 
-    initial = gamma.ppf(np.sort(adapted_cdf), *obs_gamma) * gamma.ppf(sce_cdf, *sce_gamma) / gamma.ppf(sce_cdf, *mod_gamma)
+    initial = (
+        gamma.ppf(np.sort(adapted_cdf), *obs_gamma)
+        * gamma.ppf(sce_cdf, *sce_gamma)
+        / gamma.ppf(sce_cdf, *mod_gamma)
+    )
 
-    obs_frequency = 1. * obs_raindays.shape[0] / obs_data.shape[0]
-    mod_frequency = 1. * mod_raindays.shape[0] / mod_data.shape[0]
-    sce_frequency = 1. * sce_raindays.shape[0] / sce_data.shape[0]
+    mod_frequency = 1.0 * mod_raindays.shape[0] / mod_data.shape[0]
+    sce_frequency = 1.0 * sce_raindays.shape[0] / sce_data.shape[0]
 
     days_min = len(sce_raindays) * sce_frequency / mod_frequency
 
@@ -140,21 +157,30 @@ def gamma_correction(obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshol
     correction = np.zeros(len(sce_data))
 
     if len(sce_raindays) &gt; expected_sce_raindays:
-        initial = np.interp(np.linspace(1, len(sce_raindays), expected_sce_raindays),
-                          np.linspace(1, len(sce_raindays), len(sce_raindays)),
-                          initial)
+        initial = np.interp(
+            np.linspace(1, len(sce_raindays), expected_sce_raindays),
+            np.linspace(1, len(sce_raindays), len(sce_raindays)),
+            initial,
+        )
     else:
-        initial = np.hstack((np.zeros(expected_sce_raindays - len(sce_raindays)), initial))
+        initial = np.hstack(
+            (np.zeros(expected_sce_raindays - len(sce_raindays)), initial)
+        )
 
     correction[sce_argsort[:expected_sce_raindays]] = initial
-    #correction = pd.Series(correction, index=sce_data.index)
+    # correction = pd.Series(correction, index=sce_data.index)
     return correction
+
 
 def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     obs_len, mod_len, sce_len = [len(x) for x in [obs_data, mod_data, sce_data]]
     obs_mean, mod_mean, sce_mean = [x.mean() for x in [obs_data, mod_data, sce_data]]
-    obs_detrended, mod_detrended, sce_detrended = [detrend(x) for x in [obs_data, mod_data, sce_data]]
-    obs_norm, mod_norm, sce_norm = [norm.fit(x) for x in [obs_detrended, mod_detrended, sce_detrended]]
+    obs_detrended, mod_detrended, sce_detrended = [
+        detrend(x) for x in [obs_data, mod_data, sce_data]
+    ]
+    obs_norm, mod_norm, sce_norm = [
+        norm.fit(x) for x in [obs_detrended, mod_detrended, sce_detrended]
+    ]
 
     obs_cdf = norm.cdf(np.sort(obs_detrended), *obs_norm)
     mod_cdf = norm.cdf(np.sort(mod_detrended), *mod_norm)
@@ -167,21 +193,29 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     sce_diff = sce_data - sce_detrended
     sce_argsort = np.argsort(sce_detrended)
 
-    obs_cdf_intpol = np.interp(np.linspace(1, obs_len, sce_len),
-                               np.linspace(1, obs_len, obs_len),
-                               obs_cdf)
-    mod_cdf_intpol = np.interp(np.linspace(1, mod_len, sce_len),
-                               np.linspace(1, mod_len, mod_len),
-                               mod_cdf)
-    obs_cdf_shift, mod_cdf_shift, sce_cdf_shift = [(x - 0.5) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]]
+    obs_cdf_intpol = np.interp(
+        np.linspace(1, obs_len, sce_len), np.linspace(1, obs_len, obs_len), obs_cdf
+    )
+    mod_cdf_intpol = np.interp(
+        np.linspace(1, mod_len, sce_len), np.linspace(1, mod_len, mod_len), mod_cdf
+    )
+    obs_cdf_shift, mod_cdf_shift, sce_cdf_shift = [
+        (x - 0.5) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]
+    ]
 
-    obs_inverse, mod_inverse, sce_inverse = [1. / (.5 - np.abs(x)) for x in [obs_cdf_shift, mod_cdf_shift, sce_cdf_shift]]
+    obs_inverse, mod_inverse, sce_inverse = [
+        1.0 / (0.5 - np.abs(x)) for x in [obs_cdf_shift, mod_cdf_shift, sce_cdf_shift]
+    ]
 
-    adapted_cdf = np.sign(obs_cdf_shift) * (1. - 1. / (obs_inverse * sce_inverse / mod_inverse))
-    adapted_cdf[adapted_cdf &lt; 0] += 1.
+    adapted_cdf = np.sign(obs_cdf_shift) * (
+        1.0 - 1.0 / (obs_inverse * sce_inverse / mod_inverse)
+    )
+    adapted_cdf[adapted_cdf &lt; 0] += 1.0
     adapted_cdf = np.maximum(np.minimum(adapted_cdf, cdf_threshold), 1 - cdf_threshold)
 
-    xvals = norm.ppf(np.sort(adapted_cdf), *obs_norm) + obs_norm[-1] / mod_norm[-1] * (norm.ppf(sce_cdf, *sce_norm) - norm.ppf(sce_cdf, *mod_norm))
+    xvals = norm.ppf(np.sort(adapted_cdf), *obs_norm) + obs_norm[-1] / mod_norm[-1] * (
+        norm.ppf(sce_cdf, *sce_norm) - norm.ppf(sce_cdf, *mod_norm)
+    )
 
     xvals -= xvals.mean()
     xvals += obs_mean + (sce_mean - mod_mean)
@@ -189,8 +223,9 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     correction = np.zeros(sce_len)
     correction[sce_argsort] = xvals
     correction += sce_diff - sce_mean
-    #correction = pd.Series(correction, index=sce_data.index)
+    # correction = pd.Series(correction, index=sce_data.index)
     return correction
+
 
 class BiasCorrection(object):
     def __init__(self, obs_data, mod_data, sce_data):
@@ -198,70 +233,119 @@ class BiasCorrection(object):
         self.mod_data = mod_data
         self.sce_data = sce_data
 
-    def correct(self, method = &#39;modified_quantile&#39;, lower_limit=0.1, cdf_threshold=0.9999999):
-        if method == &#39;gamma_mapping&#39;:
-            corrected = gamma_correction(self.obs_data, self.mod_data, self.sce_data, lower_limit=lower_limit,\
-                                                      cdf_threshold=cdf_threshold)
-        elif method == &#39;normal_mapping&#39;:
-            corrected = normal_correction(self.obs_data, self.mod_data, self.sce_data, \
-                                                      cdf_threshold=cdf_threshold)
-        elif method == &#39;basic_quantile&#39;:
-            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = False)
+    def correct(
+        self, method=&#34;modified_quantile&#34;, lower_limit=0.1, cdf_threshold=0.9999999
+    ):
+        if method == &#34;gamma_mapping&#34;:
+            corrected = gamma_correction(
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                lower_limit=lower_limit,
+                cdf_threshold=cdf_threshold,
+            )
+        elif method == &#34;normal_mapping&#34;:
+            corrected = normal_correction(
+                self.obs_data, self.mod_data, self.sce_data, cdf_threshold=cdf_threshold
+            )
+        elif method == &#34;basic_quantile&#34;:
+            corrected = quantile_correction(
+                self.obs_data, self.mod_data, self.sce_data, modified=False
+            )
+
+        elif method == &#34;modified_quantile&#34;:
+            corrected = quantile_correction(
+                self.obs_data, self.mod_data, self.sce_data, modified=True
+            )
+
         else:
-            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = True)
+            raise Exception(&#34;Specify correct method for bias correction.&#34;)
+
         self.corrected = pd.Series(corrected, index=self.sce_data.index)
         return self.corrected
-        
+
+
 class XBiasCorrection(object):
-    def __init__(self, obs_data, mod_data, sce_data, dim=&#39;time&#39;):
+    def __init__(self, obs_data, mod_data, sce_data, dim=&#34;time&#34;):
         self.obs_data = obs_data
         self.mod_data = mod_data
         self.sce_data = sce_data
         self.dim = dim
-        #print(sce_data)
+        # print(sce_data)
 
-    def correct(self, method = &#39;modified_quantile&#39;, \
-                lower_limit=0.1, cdf_threshold=0.9999999, \
-                vectorize=True, dask=&#39;parallelized&#39;):
+    def correct(
+        self,
+        method=&#34;modified_quantile&#34;,
+        lower_limit=0.1,
+        cdf_threshold=0.9999999,
+        vectorize=True,
+        dask=&#34;parallelized&#34;,
+    ):
         dtype = self._set_dtype()
         dim = self.dim
-        if method == &#39;gamma_mapping&#39;:
-            corrected = xr.apply_ufunc(gamma_correction,\
-                                       self.obs_data, self.mod_data, self.sce_data,\
-                                       vectorize=vectorize, dask=dask,\
-                                       input_core_dims=[[dim],[dim], [dim]],\
-                                       output_core_dims=[[dim]], output_dtypes=[dtype],\
-                                       kwargs={&#39;lower_limit&#39;:lower_limit, \
-                                               &#39;cdf_threshold&#39;:cdf_threshold})
-        elif method == &#39;normal_mapping&#39;:
-            corrected = xr.apply_ufunc(normal_correction,\
-                                       self.obs_data, self.mod_data, self.sce_data,\
-                                       vectorize=vectorize, dask=dask,\
-                                       input_core_dims=[[dim],[dim], [dim]],\
-                                       output_core_dims=[[dim]], output_dtypes=[dtype],\
-                                       kwargs={&#39;cdf_threshold&#39;:cdf_threshold})
-        elif method == &#39;basic_quantile&#39;:
-            corrected = xr.apply_ufunc(quantile_correction, 
-                           self.obs_data, self.mod_data, self.sce_data,
-                           vectorize=vectorize, dask=dask,\
-                           input_core_dims=[[dim],[dim], [dim]],
-                           output_core_dims=[[dim]], kwargs={&#39;modified&#39;:False})
+        if method == &#34;gamma_mapping&#34;:
+            corrected = xr.apply_ufunc(
+                gamma_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                output_dtypes=[dtype],
+                kwargs={&#34;lower_limit&#34;: lower_limit, &#34;cdf_threshold&#34;: cdf_threshold},
+            )
+        elif method == &#34;normal_mapping&#34;:
+            corrected = xr.apply_ufunc(
+                normal_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                output_dtypes=[dtype],
+                kwargs={&#34;cdf_threshold&#34;: cdf_threshold},
+            )
+        elif method == &#34;basic_quantile&#34;:
+            corrected = xr.apply_ufunc(
+                quantile_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                kwargs={&#34;modified&#34;: False},
+            )
+
+        elif method == &#34;modified_quantile&#34;:
+            corrected = xr.apply_ufunc(
+                quantile_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                kwargs={&#34;modified&#34;: True},
+            )
+
         else:
-            corrected = xr.apply_ufunc(quantile_correction, 
-                           self.obs_data, self.mod_data, self.sce_data,
-                           vectorize=vectorize, dask=dask,\
-                           input_core_dims=[[dim],[dim], [dim]],
-                           output_core_dims=[[dim]],
-                           output_dtypes=[dtype], kwargs={&#39;modified&#39;:True})
+            raise Exception(&#34;Specify correct method for bias correction.&#34;)
         self.corrected = corrected
         return self.corrected
-    
+
     def _set_dtype(self):
         aa = self.mod_data
         if isinstance(aa, xr.Dataset):
             dtype = aa[list(aa.data_vars)[0]].dtype
-            print(&#39;No `dtype` chosen. Input is Dataset. \
-            Defaults to %s&#39; % dtype)
+            # print(&#39;No `dtype` chosen. Input is Dataset. \
+            # Defaults to %s&#39; % dtype)
         elif isinstance(aa, xr.DataArray):
             dtype = aa.dtype
         return dtype</code></pre>
@@ -283,9 +367,15 @@ class XBiasCorrection(object):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def gamma_correction(obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999):
-    obs_raindays, mod_raindays, sce_raindays = [x[x &gt;= lower_limit] for x in [obs_data, mod_data, sce_data]]
-    obs_gamma, mod_gamma, sce_gamma = [gamma.fit(x) for x in [obs_raindays, mod_raindays, sce_raindays]]
+<pre><code class="python">def gamma_correction(
+    obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999
+):
+    obs_raindays, mod_raindays, sce_raindays = [
+        x[x &gt;= lower_limit] for x in [obs_data, mod_data, sce_data]
+    ]
+    obs_gamma, mod_gamma, sce_gamma = [
+        gamma.fit(x) for x in [obs_raindays, mod_raindays, sce_raindays]
+    ]
 
     obs_cdf = gamma.cdf(np.sort(obs_raindays), *obs_gamma)
     mod_cdf = gamma.cdf(np.sort(mod_raindays), *mod_gamma)
@@ -295,24 +385,33 @@ class XBiasCorrection(object):
     mod_cdf[mod_cdf &gt; cdf_threshold] = cdf_threshold
     sce_cdf[sce_cdf &gt; cdf_threshold] = cdf_threshold
 
-    obs_cdf_intpol = np.interp(np.linspace(1, len(obs_raindays), len(sce_raindays)),
-                               np.linspace(1, len(obs_raindays), len(obs_raindays)),
-                               obs_cdf)
+    obs_cdf_intpol = np.interp(
+        np.linspace(1, len(obs_raindays), len(sce_raindays)),
+        np.linspace(1, len(obs_raindays), len(obs_raindays)),
+        obs_cdf,
+    )
 
-    mod_cdf_intpol = np.interp(np.linspace(1, len(mod_raindays), len(sce_raindays)),
-                               np.linspace(1, len(mod_raindays), len(mod_raindays)),
-                               mod_cdf)
+    mod_cdf_intpol = np.interp(
+        np.linspace(1, len(mod_raindays), len(sce_raindays)),
+        np.linspace(1, len(mod_raindays), len(mod_raindays)),
+        mod_cdf,
+    )
 
-    obs_inverse, mod_inverse, sce_inverse = [1. / (1. - x) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]]
+    obs_inverse, mod_inverse, sce_inverse = [
+        1.0 / (1.0 - x) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]
+    ]
 
-    adapted_cdf = 1 - 1. / (obs_inverse * sce_inverse / mod_inverse)
-    adapted_cdf[adapted_cdf &lt; 0.] = 0.
+    adapted_cdf = 1 - 1.0 / (obs_inverse * sce_inverse / mod_inverse)
+    adapted_cdf[adapted_cdf &lt; 0.0] = 0.0
 
-    initial = gamma.ppf(np.sort(adapted_cdf), *obs_gamma) * gamma.ppf(sce_cdf, *sce_gamma) / gamma.ppf(sce_cdf, *mod_gamma)
+    initial = (
+        gamma.ppf(np.sort(adapted_cdf), *obs_gamma)
+        * gamma.ppf(sce_cdf, *sce_gamma)
+        / gamma.ppf(sce_cdf, *mod_gamma)
+    )
 
-    obs_frequency = 1. * obs_raindays.shape[0] / obs_data.shape[0]
-    mod_frequency = 1. * mod_raindays.shape[0] / mod_data.shape[0]
-    sce_frequency = 1. * sce_raindays.shape[0] / sce_data.shape[0]
+    mod_frequency = 1.0 * mod_raindays.shape[0] / mod_data.shape[0]
+    sce_frequency = 1.0 * sce_raindays.shape[0] / sce_data.shape[0]
 
     days_min = len(sce_raindays) * sce_frequency / mod_frequency
 
@@ -322,14 +421,18 @@ class XBiasCorrection(object):
     correction = np.zeros(len(sce_data))
 
     if len(sce_raindays) &gt; expected_sce_raindays:
-        initial = np.interp(np.linspace(1, len(sce_raindays), expected_sce_raindays),
-                          np.linspace(1, len(sce_raindays), len(sce_raindays)),
-                          initial)
+        initial = np.interp(
+            np.linspace(1, len(sce_raindays), expected_sce_raindays),
+            np.linspace(1, len(sce_raindays), len(sce_raindays)),
+            initial,
+        )
     else:
-        initial = np.hstack((np.zeros(expected_sce_raindays - len(sce_raindays)), initial))
+        initial = np.hstack(
+            (np.zeros(expected_sce_raindays - len(sce_raindays)), initial)
+        )
 
     correction[sce_argsort[:expected_sce_raindays]] = initial
-    #correction = pd.Series(correction, index=sce_data.index)
+    # correction = pd.Series(correction, index=sce_data.index)
     return correction</code></pre>
 </details>
 </dd>
@@ -345,8 +448,12 @@ class XBiasCorrection(object):
 <pre><code class="python">def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     obs_len, mod_len, sce_len = [len(x) for x in [obs_data, mod_data, sce_data]]
     obs_mean, mod_mean, sce_mean = [x.mean() for x in [obs_data, mod_data, sce_data]]
-    obs_detrended, mod_detrended, sce_detrended = [detrend(x) for x in [obs_data, mod_data, sce_data]]
-    obs_norm, mod_norm, sce_norm = [norm.fit(x) for x in [obs_detrended, mod_detrended, sce_detrended]]
+    obs_detrended, mod_detrended, sce_detrended = [
+        detrend(x) for x in [obs_data, mod_data, sce_data]
+    ]
+    obs_norm, mod_norm, sce_norm = [
+        norm.fit(x) for x in [obs_detrended, mod_detrended, sce_detrended]
+    ]
 
     obs_cdf = norm.cdf(np.sort(obs_detrended), *obs_norm)
     mod_cdf = norm.cdf(np.sort(mod_detrended), *mod_norm)
@@ -359,21 +466,29 @@ class XBiasCorrection(object):
     sce_diff = sce_data - sce_detrended
     sce_argsort = np.argsort(sce_detrended)
 
-    obs_cdf_intpol = np.interp(np.linspace(1, obs_len, sce_len),
-                               np.linspace(1, obs_len, obs_len),
-                               obs_cdf)
-    mod_cdf_intpol = np.interp(np.linspace(1, mod_len, sce_len),
-                               np.linspace(1, mod_len, mod_len),
-                               mod_cdf)
-    obs_cdf_shift, mod_cdf_shift, sce_cdf_shift = [(x - 0.5) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]]
+    obs_cdf_intpol = np.interp(
+        np.linspace(1, obs_len, sce_len), np.linspace(1, obs_len, obs_len), obs_cdf
+    )
+    mod_cdf_intpol = np.interp(
+        np.linspace(1, mod_len, sce_len), np.linspace(1, mod_len, mod_len), mod_cdf
+    )
+    obs_cdf_shift, mod_cdf_shift, sce_cdf_shift = [
+        (x - 0.5) for x in [obs_cdf_intpol, mod_cdf_intpol, sce_cdf]
+    ]
 
-    obs_inverse, mod_inverse, sce_inverse = [1. / (.5 - np.abs(x)) for x in [obs_cdf_shift, mod_cdf_shift, sce_cdf_shift]]
+    obs_inverse, mod_inverse, sce_inverse = [
+        1.0 / (0.5 - np.abs(x)) for x in [obs_cdf_shift, mod_cdf_shift, sce_cdf_shift]
+    ]
 
-    adapted_cdf = np.sign(obs_cdf_shift) * (1. - 1. / (obs_inverse * sce_inverse / mod_inverse))
-    adapted_cdf[adapted_cdf &lt; 0] += 1.
+    adapted_cdf = np.sign(obs_cdf_shift) * (
+        1.0 - 1.0 / (obs_inverse * sce_inverse / mod_inverse)
+    )
+    adapted_cdf[adapted_cdf &lt; 0] += 1.0
     adapted_cdf = np.maximum(np.minimum(adapted_cdf, cdf_threshold), 1 - cdf_threshold)
 
-    xvals = norm.ppf(np.sort(adapted_cdf), *obs_norm) + obs_norm[-1] / mod_norm[-1] * (norm.ppf(sce_cdf, *sce_norm) - norm.ppf(sce_cdf, *mod_norm))
+    xvals = norm.ppf(np.sort(adapted_cdf), *obs_norm) + obs_norm[-1] / mod_norm[-1] * (
+        norm.ppf(sce_cdf, *sce_norm) - norm.ppf(sce_cdf, *mod_norm)
+    )
 
     xvals -= xvals.mean()
     xvals += obs_mean + (sce_mean - mod_mean)
@@ -381,7 +496,7 @@ class XBiasCorrection(object):
     correction = np.zeros(sce_len)
     correction[sce_argsort] = xvals
     correction += sce_diff - sce_mean
-    #correction = pd.Series(correction, index=sce_data.index)
+    # correction = pd.Series(correction, index=sce_data.index)
     return correction</code></pre>
 </details>
 </dd>
@@ -406,7 +521,7 @@ class XBiasCorrection(object):
         iqr_mod_data = np.subtract(*np.nanpercentile(mod_data, [75, 25]))
 
         f = np.true_divide(iqr_obs_data, iqr_mod_data)
-        cor = g*mid + f*(cor - mid)
+        cor = g * mid + f * (cor - mid)
         return sce_data + cor
     else:
         return sce_data + cor</code></pre>
@@ -433,17 +548,34 @@ class XBiasCorrection(object):
         self.mod_data = mod_data
         self.sce_data = sce_data
 
-    def correct(self, method = &#39;modified_quantile&#39;, lower_limit=0.1, cdf_threshold=0.9999999):
-        if method == &#39;gamma_mapping&#39;:
-            corrected = gamma_correction(self.obs_data, self.mod_data, self.sce_data, lower_limit=lower_limit,\
-                                                      cdf_threshold=cdf_threshold)
-        elif method == &#39;normal_mapping&#39;:
-            corrected = normal_correction(self.obs_data, self.mod_data, self.sce_data, \
-                                                      cdf_threshold=cdf_threshold)
-        elif method == &#39;basic_quantile&#39;:
-            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = False)
+    def correct(
+        self, method=&#34;modified_quantile&#34;, lower_limit=0.1, cdf_threshold=0.9999999
+    ):
+        if method == &#34;gamma_mapping&#34;:
+            corrected = gamma_correction(
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                lower_limit=lower_limit,
+                cdf_threshold=cdf_threshold,
+            )
+        elif method == &#34;normal_mapping&#34;:
+            corrected = normal_correction(
+                self.obs_data, self.mod_data, self.sce_data, cdf_threshold=cdf_threshold
+            )
+        elif method == &#34;basic_quantile&#34;:
+            corrected = quantile_correction(
+                self.obs_data, self.mod_data, self.sce_data, modified=False
+            )
+
+        elif method == &#34;modified_quantile&#34;:
+            corrected = quantile_correction(
+                self.obs_data, self.mod_data, self.sce_data, modified=True
+            )
+
         else:
-            corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = True)
+            raise Exception(&#34;Specify correct method for bias correction.&#34;)
+
         self.corrected = pd.Series(corrected, index=self.sce_data.index)
         return self.corrected</code></pre>
 </details>
@@ -458,17 +590,34 @@ class XBiasCorrection(object):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def correct(self, method = &#39;modified_quantile&#39;, lower_limit=0.1, cdf_threshold=0.9999999):
-    if method == &#39;gamma_mapping&#39;:
-        corrected = gamma_correction(self.obs_data, self.mod_data, self.sce_data, lower_limit=lower_limit,\
-                                                  cdf_threshold=cdf_threshold)
-    elif method == &#39;normal_mapping&#39;:
-        corrected = normal_correction(self.obs_data, self.mod_data, self.sce_data, \
-                                                  cdf_threshold=cdf_threshold)
-    elif method == &#39;basic_quantile&#39;:
-        corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = False)
+<pre><code class="python">def correct(
+    self, method=&#34;modified_quantile&#34;, lower_limit=0.1, cdf_threshold=0.9999999
+):
+    if method == &#34;gamma_mapping&#34;:
+        corrected = gamma_correction(
+            self.obs_data,
+            self.mod_data,
+            self.sce_data,
+            lower_limit=lower_limit,
+            cdf_threshold=cdf_threshold,
+        )
+    elif method == &#34;normal_mapping&#34;:
+        corrected = normal_correction(
+            self.obs_data, self.mod_data, self.sce_data, cdf_threshold=cdf_threshold
+        )
+    elif method == &#34;basic_quantile&#34;:
+        corrected = quantile_correction(
+            self.obs_data, self.mod_data, self.sce_data, modified=False
+        )
+
+    elif method == &#34;modified_quantile&#34;:
+        corrected = quantile_correction(
+            self.obs_data, self.mod_data, self.sce_data, modified=True
+        )
+
     else:
-        corrected = quantile_correction(self.obs_data, self.mod_data, self.sce_data, modified = True)
+        raise Exception(&#34;Specify correct method for bias correction.&#34;)
+
     self.corrected = pd.Series(corrected, index=self.sce_data.index)
     return self.corrected</code></pre>
 </details>
@@ -486,55 +635,86 @@ class XBiasCorrection(object):
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">class XBiasCorrection(object):
-    def __init__(self, obs_data, mod_data, sce_data, dim=&#39;time&#39;):
+    def __init__(self, obs_data, mod_data, sce_data, dim=&#34;time&#34;):
         self.obs_data = obs_data
         self.mod_data = mod_data
         self.sce_data = sce_data
         self.dim = dim
-        #print(sce_data)
+        # print(sce_data)
 
-    def correct(self, method = &#39;modified_quantile&#39;, \
-                lower_limit=0.1, cdf_threshold=0.9999999, \
-                vectorize=True, dask=&#39;parallelized&#39;):
+    def correct(
+        self,
+        method=&#34;modified_quantile&#34;,
+        lower_limit=0.1,
+        cdf_threshold=0.9999999,
+        vectorize=True,
+        dask=&#34;parallelized&#34;,
+    ):
         dtype = self._set_dtype()
         dim = self.dim
-        if method == &#39;gamma_mapping&#39;:
-            corrected = xr.apply_ufunc(gamma_correction,\
-                                       self.obs_data, self.mod_data, self.sce_data,\
-                                       vectorize=vectorize, dask=dask,\
-                                       input_core_dims=[[dim],[dim], [dim]],\
-                                       output_core_dims=[[dim]], output_dtypes=[dtype],\
-                                       kwargs={&#39;lower_limit&#39;:lower_limit, \
-                                               &#39;cdf_threshold&#39;:cdf_threshold})
-        elif method == &#39;normal_mapping&#39;:
-            corrected = xr.apply_ufunc(normal_correction,\
-                                       self.obs_data, self.mod_data, self.sce_data,\
-                                       vectorize=vectorize, dask=dask,\
-                                       input_core_dims=[[dim],[dim], [dim]],\
-                                       output_core_dims=[[dim]], output_dtypes=[dtype],\
-                                       kwargs={&#39;cdf_threshold&#39;:cdf_threshold})
-        elif method == &#39;basic_quantile&#39;:
-            corrected = xr.apply_ufunc(quantile_correction, 
-                           self.obs_data, self.mod_data, self.sce_data,
-                           vectorize=vectorize, dask=dask,\
-                           input_core_dims=[[dim],[dim], [dim]],
-                           output_core_dims=[[dim]], kwargs={&#39;modified&#39;:False})
+        if method == &#34;gamma_mapping&#34;:
+            corrected = xr.apply_ufunc(
+                gamma_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                output_dtypes=[dtype],
+                kwargs={&#34;lower_limit&#34;: lower_limit, &#34;cdf_threshold&#34;: cdf_threshold},
+            )
+        elif method == &#34;normal_mapping&#34;:
+            corrected = xr.apply_ufunc(
+                normal_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                output_dtypes=[dtype],
+                kwargs={&#34;cdf_threshold&#34;: cdf_threshold},
+            )
+        elif method == &#34;basic_quantile&#34;:
+            corrected = xr.apply_ufunc(
+                quantile_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                kwargs={&#34;modified&#34;: False},
+            )
+
+        elif method == &#34;modified_quantile&#34;:
+            corrected = xr.apply_ufunc(
+                quantile_correction,
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                vectorize=vectorize,
+                dask=dask,
+                input_core_dims=[[dim], [dim], [dim]],
+                output_core_dims=[[dim]],
+                kwargs={&#34;modified&#34;: True},
+            )
+
         else:
-            corrected = xr.apply_ufunc(quantile_correction, 
-                           self.obs_data, self.mod_data, self.sce_data,
-                           vectorize=vectorize, dask=dask,\
-                           input_core_dims=[[dim],[dim], [dim]],
-                           output_core_dims=[[dim]],
-                           output_dtypes=[dtype], kwargs={&#39;modified&#39;:True})
+            raise Exception(&#34;Specify correct method for bias correction.&#34;)
         self.corrected = corrected
         return self.corrected
-    
+
     def _set_dtype(self):
         aa = self.mod_data
         if isinstance(aa, xr.Dataset):
             dtype = aa[list(aa.data_vars)[0]].dtype
-            print(&#39;No `dtype` chosen. Input is Dataset. \
-            Defaults to %s&#39; % dtype)
+            # print(&#39;No `dtype` chosen. Input is Dataset. \
+            # Defaults to %s&#39; % dtype)
         elif isinstance(aa, xr.DataArray):
             dtype = aa.dtype
         return dtype</code></pre>
@@ -550,39 +730,70 @@ class XBiasCorrection(object):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def correct(self, method = &#39;modified_quantile&#39;, \
-            lower_limit=0.1, cdf_threshold=0.9999999, \
-            vectorize=True, dask=&#39;parallelized&#39;):
+<pre><code class="python">def correct(
+    self,
+    method=&#34;modified_quantile&#34;,
+    lower_limit=0.1,
+    cdf_threshold=0.9999999,
+    vectorize=True,
+    dask=&#34;parallelized&#34;,
+):
     dtype = self._set_dtype()
     dim = self.dim
-    if method == &#39;gamma_mapping&#39;:
-        corrected = xr.apply_ufunc(gamma_correction,\
-                                   self.obs_data, self.mod_data, self.sce_data,\
-                                   vectorize=vectorize, dask=dask,\
-                                   input_core_dims=[[dim],[dim], [dim]],\
-                                   output_core_dims=[[dim]], output_dtypes=[dtype],\
-                                   kwargs={&#39;lower_limit&#39;:lower_limit, \
-                                           &#39;cdf_threshold&#39;:cdf_threshold})
-    elif method == &#39;normal_mapping&#39;:
-        corrected = xr.apply_ufunc(normal_correction,\
-                                   self.obs_data, self.mod_data, self.sce_data,\
-                                   vectorize=vectorize, dask=dask,\
-                                   input_core_dims=[[dim],[dim], [dim]],\
-                                   output_core_dims=[[dim]], output_dtypes=[dtype],\
-                                   kwargs={&#39;cdf_threshold&#39;:cdf_threshold})
-    elif method == &#39;basic_quantile&#39;:
-        corrected = xr.apply_ufunc(quantile_correction, 
-                       self.obs_data, self.mod_data, self.sce_data,
-                       vectorize=vectorize, dask=dask,\
-                       input_core_dims=[[dim],[dim], [dim]],
-                       output_core_dims=[[dim]], kwargs={&#39;modified&#39;:False})
+    if method == &#34;gamma_mapping&#34;:
+        corrected = xr.apply_ufunc(
+            gamma_correction,
+            self.obs_data,
+            self.mod_data,
+            self.sce_data,
+            vectorize=vectorize,
+            dask=dask,
+            input_core_dims=[[dim], [dim], [dim]],
+            output_core_dims=[[dim]],
+            output_dtypes=[dtype],
+            kwargs={&#34;lower_limit&#34;: lower_limit, &#34;cdf_threshold&#34;: cdf_threshold},
+        )
+    elif method == &#34;normal_mapping&#34;:
+        corrected = xr.apply_ufunc(
+            normal_correction,
+            self.obs_data,
+            self.mod_data,
+            self.sce_data,
+            vectorize=vectorize,
+            dask=dask,
+            input_core_dims=[[dim], [dim], [dim]],
+            output_core_dims=[[dim]],
+            output_dtypes=[dtype],
+            kwargs={&#34;cdf_threshold&#34;: cdf_threshold},
+        )
+    elif method == &#34;basic_quantile&#34;:
+        corrected = xr.apply_ufunc(
+            quantile_correction,
+            self.obs_data,
+            self.mod_data,
+            self.sce_data,
+            vectorize=vectorize,
+            dask=dask,
+            input_core_dims=[[dim], [dim], [dim]],
+            output_core_dims=[[dim]],
+            kwargs={&#34;modified&#34;: False},
+        )
+
+    elif method == &#34;modified_quantile&#34;:
+        corrected = xr.apply_ufunc(
+            quantile_correction,
+            self.obs_data,
+            self.mod_data,
+            self.sce_data,
+            vectorize=vectorize,
+            dask=dask,
+            input_core_dims=[[dim], [dim], [dim]],
+            output_core_dims=[[dim]],
+            kwargs={&#34;modified&#34;: True},
+        )
+
     else:
-        corrected = xr.apply_ufunc(quantile_correction, 
-                       self.obs_data, self.mod_data, self.sce_data,
-                       vectorize=vectorize, dask=dask,\
-                       input_core_dims=[[dim],[dim], [dim]],
-                       output_core_dims=[[dim]],
-                       output_dtypes=[dtype], kwargs={&#39;modified&#39;:True})
+        raise Exception(&#34;Specify correct method for bias correction.&#34;)
     self.corrected = corrected
     return self.corrected</code></pre>
 </details>
