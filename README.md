@@ -1,3 +1,11 @@
+_________________
+
+[![PyPI version](https://badge.fury.io/py/bias-correction.svg)](http://badge.fury.io/py/bias-correction)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://pypi.python.org/pypi/bias-correction/)
+[![Downloads](https://pepy.tech/badge/bias-correction)](https://pepy.tech/project/bias-correction)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+_________________
+
 ### About
 
 The module `bias_correction` consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include [quantile mapping](https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/joc.2168), [modified quantile mapping](https://www.sciencedirect.com/science/article/abs/pii/S0034425716302000?via%3Dihub) , [scaled distribution mapping (Gamma and Normal Corrections)](https://www.hydrol-earth-syst-sci.net/21/2649/2017/). 
