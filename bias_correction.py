@@ -12,16 +12,18 @@ pip install bias-correction
 `bias_correction` is easy to use. Just import:
 
 ```python
-from bias_correction import BiasCorrection
+from bias_correction import BiasCorrection, XBiasCorrection
 ```
 Instantiate the bias correction class as:
 ```python
 bc = BiasCorrection(reference, model, data_to_be_corrected)
+xbc = XBiasCorrection(reference, model, data_to_be_corrected)
 ```
 
 Perform correction specifying the method to be used:
 ```python
 corrected = bc.correct(method='gamma_mapping')
+corrected = xbc.correct(method='gamma_mapping')
 ```
 """
 
@@ -229,7 +231,6 @@ class XBiasCorrection(object):
         self.mod_data = mod_data
         self.sce_data = sce_data
         self.dim = dim
-        # print(sce_data)
 
     def correct(
         self,
@@ -238,6 +239,7 @@ class XBiasCorrection(object):
         cdf_threshold=0.9999999,
         vectorize=True,
         dask="parallelized",
+        **apply_ufunc_kwargs
     ):
         dtype = self._set_dtype()
         dim = self.dim
@@ -253,6 +255,7 @@ class XBiasCorrection(object):
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
                 kwargs={"lower_limit": lower_limit, "cdf_threshold": cdf_threshold},
+                **apply_ufunc_kwargs
             )
         elif method == "normal_mapping":
             corrected = xr.apply_ufunc(
@@ -266,6 +269,7 @@ class XBiasCorrection(object):
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
                 kwargs={"cdf_threshold": cdf_threshold},
+                **apply_ufunc_kwargs
             )
         elif method == "basic_quantile":
             corrected = xr.apply_ufunc(
@@ -278,6 +282,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 kwargs={"modified": False},
+                **apply_ufunc_kwargs
             )
 
         elif method == "modified_quantile":
@@ -291,6 +296,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 kwargs={"modified": True},
+                **apply_ufunc_kwargs
             )
 
         else:
@@ -302,8 +308,6 @@ class XBiasCorrection(object):
         aa = self.mod_data
         if isinstance(aa, xr.Dataset):
             dtype = aa[list(aa.data_vars)[0]].dtype
-            # print('No `dtype` chosen. Input is Dataset. \
-            # Defaults to %s' % dtype)
         elif isinstance(aa, xr.DataArray):
             dtype = aa.dtype
         return dtype
