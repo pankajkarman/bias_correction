@@ -4,26 +4,10 @@ name: bias-correction installs
 on: pull_request
 
 jobs:
-  detect-ci-trigger:
-    name: detect ci trigger
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
-    outputs:
-      triggered: ${{ steps.detect-trigger.outputs.trigger-found }}
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 2
-      - uses: xarray-contrib/ci-trigger@v1.1
-        id: detect-trigger
-        with:
-          keyword: "[skip-ci]"
 
   install-bias-correction:  # Installs bias-correction on various OS.
     name: Install bias-correction, ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    needs: detect-ci-trigger
-    if: needs.detect-ci-trigger.outputs.triggered == 'false'
     defaults:
         run:
           shell: bash {0}
