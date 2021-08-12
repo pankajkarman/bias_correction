@@ -13,6 +13,7 @@ setup(
      author='Pankaj Kumar',
      author_email='pankaj.kmr1990@gmail.com',
      license='MIT',
+     py_modules=['bias_correction'],
      install_requires=[
      "numpy", 'scipy', 'pandas', 'statsmodels', 'xarray'
      ],
