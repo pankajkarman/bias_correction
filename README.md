@@ -4,7 +4,7 @@ _________________
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://pypi.python.org/pypi/bias-correction/)
 [![Downloads](https://pepy.tech/badge/bias-correction)](https://pepy.tech/project/bias-correction)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![conda](https://anaconda.org/conda-forge/bias_correction/badges/version.svg)]
+![conda](https://anaconda.org/conda-forge/bias_correction/badges/version.svg)
 _________________
 
 ### About
