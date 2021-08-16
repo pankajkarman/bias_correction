@@ -1,6 +1,6 @@
 _________________
 
-[![PyPI](https://badge.fury.io/py/bias-correction.svg)](http://badge.fury.io/py/bias-correction)
+[![PyPI](https://img.shields.io/pypi/v/bias_correction.svg)](http://badge.fury.io/py/bias-correction)
 [![conda](https://img.shields.io/conda/vn/conda-forge/bias_correction.svg)](https://anaconda.org/conda-forge/bias_correction)
 [![Downloads](https://pepy.tech/badge/bias-correction)](https://pepy.tech/project/bias-correction)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://pypi.python.org/pypi/bias-correction/)
