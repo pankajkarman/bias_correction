@@ -28,13 +28,15 @@
 </code></pre>
 <h3 id="usage">Usage</h3>
 <p><code><a title="bias_correction" href="#bias_correction">bias_correction</a></code> is easy to use. Just import:</p>
-<pre><code class="language-python">from bias_correction import BiasCorrection
+<pre><code class="language-python">from bias_correction import BiasCorrection, XBiasCorrection
 </code></pre>
 <p>Instantiate the bias correction class as:</p>
 <pre><code class="language-python">bc = BiasCorrection(reference, model, data_to_be_corrected)
+xbc = XBiasCorrection(reference, model, data_to_be_corrected)
 </code></pre>
 <p>Perform correction specifying the method to be used:</p>
 <pre><code class="language-python">corrected = bc.correct(method='gamma_mapping')
+corrected = xbc.correct(method='gamma_mapping')
 </code></pre>
 <details class="source">
 <summary>
@@ -54,16 +56,18 @@ pip install bias-correction
 `bias_correction` is easy to use. Just import:
 
 ```python
-from bias_correction import BiasCorrection
+from bias_correction import BiasCorrection, XBiasCorrection
 ```
 Instantiate the bias correction class as:
 ```python
 bc = BiasCorrection(reference, model, data_to_be_corrected)
+xbc = XBiasCorrection(reference, model, data_to_be_corrected)
 ```
 
 Perform correction specifying the method to be used:
 ```python
 corrected = bc.correct(method=&#39;gamma_mapping&#39;)
+corrected = xbc.correct(method=&#39;gamma_mapping&#39;)
 ```
 &#34;&#34;&#34;
 
@@ -271,7 +275,6 @@ class XBiasCorrection(object):
         self.mod_data = mod_data
         self.sce_data = sce_data
         self.dim = dim
-        # print(sce_data)
 
     def correct(
         self,
@@ -280,6 +283,7 @@ class XBiasCorrection(object):
         cdf_threshold=0.9999999,
         vectorize=True,
         dask=&#34;parallelized&#34;,
+        **apply_ufunc_kwargs
     ):
         dtype = self._set_dtype()
         dim = self.dim
@@ -295,6 +299,7 @@ class XBiasCorrection(object):
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
                 kwargs={&#34;lower_limit&#34;: lower_limit, &#34;cdf_threshold&#34;: cdf_threshold},
+                **apply_ufunc_kwargs
             )
         elif method == &#34;normal_mapping&#34;:
             corrected = xr.apply_ufunc(
@@ -308,6 +313,7 @@ class XBiasCorrection(object):
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
                 kwargs={&#34;cdf_threshold&#34;: cdf_threshold},
+                **apply_ufunc_kwargs
             )
         elif method == &#34;basic_quantile&#34;:
             corrected = xr.apply_ufunc(
@@ -320,6 +326,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 kwargs={&#34;modified&#34;: False},
+                **apply_ufunc_kwargs
             )
 
         elif method == &#34;modified_quantile&#34;:
@@ -333,6 +340,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 kwargs={&#34;modified&#34;: True},
+                **apply_ufunc_kwargs
             )
 
         else:
@@ -344,8 +352,6 @@ class XBiasCorrection(object):
         aa = self.mod_data
         if isinstance(aa, xr.Dataset):
             dtype = aa[list(aa.data_vars)[0]].dtype
-            # print(&#39;No `dtype` chosen. Input is Dataset. \
-            # Defaults to %s&#39; % dtype)
         elif isinstance(aa, xr.DataArray):
             dtype = aa.dtype
         return dtype</code></pre>
@@ -640,7 +646,6 @@ class XBiasCorrection(object):
         self.mod_data = mod_data
         self.sce_data = sce_data
         self.dim = dim
-        # print(sce_data)
 
     def correct(
         self,
@@ -649,6 +654,7 @@ class XBiasCorrection(object):
         cdf_threshold=0.9999999,
         vectorize=True,
         dask=&#34;parallelized&#34;,
+        **apply_ufunc_kwargs
     ):
         dtype = self._set_dtype()
         dim = self.dim
@@ -664,6 +670,7 @@ class XBiasCorrection(object):
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
                 kwargs={&#34;lower_limit&#34;: lower_limit, &#34;cdf_threshold&#34;: cdf_threshold},
+                **apply_ufunc_kwargs
             )
         elif method == &#34;normal_mapping&#34;:
             corrected = xr.apply_ufunc(
@@ -677,6 +684,7 @@ class XBiasCorrection(object):
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
                 kwargs={&#34;cdf_threshold&#34;: cdf_threshold},
+                **apply_ufunc_kwargs
             )
         elif method == &#34;basic_quantile&#34;:
             corrected = xr.apply_ufunc(
@@ -689,6 +697,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 kwargs={&#34;modified&#34;: False},
+                **apply_ufunc_kwargs
             )
 
         elif method == &#34;modified_quantile&#34;:
@@ -702,6 +711,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 kwargs={&#34;modified&#34;: True},
+                **apply_ufunc_kwargs
             )
 
         else:
@@ -713,8 +723,6 @@ class XBiasCorrection(object):
         aa = self.mod_data
         if isinstance(aa, xr.Dataset):
             dtype = aa[list(aa.data_vars)[0]].dtype
-            # print(&#39;No `dtype` chosen. Input is Dataset. \
-            # Defaults to %s&#39; % dtype)
         elif isinstance(aa, xr.DataArray):
             dtype = aa.dtype
         return dtype</code></pre>
@@ -722,7 +730,7 @@ class XBiasCorrection(object):
 <h3>Methods</h3>
 <dl>
 <dt id="bias_correction.XBiasCorrection.correct"><code class="name flex">
-<span>def <span class="ident">correct</span></span>(<span>self, method='modified_quantile', lower_limit=0.1, cdf_threshold=0.9999999, vectorize=True, dask='parallelized')</span>
+<span>def <span class="ident">correct</span></span>(<span>self, method='modified_quantile', lower_limit=0.1, cdf_threshold=0.9999999, vectorize=True, dask='parallelized', **apply_ufunc_kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -737,6 +745,7 @@ class XBiasCorrection(object):
     cdf_threshold=0.9999999,
     vectorize=True,
     dask=&#34;parallelized&#34;,
+    **apply_ufunc_kwargs
 ):
     dtype = self._set_dtype()
     dim = self.dim
@@ -752,6 +761,7 @@ class XBiasCorrection(object):
             output_core_dims=[[dim]],
             output_dtypes=[dtype],
             kwargs={&#34;lower_limit&#34;: lower_limit, &#34;cdf_threshold&#34;: cdf_threshold},
+            **apply_ufunc_kwargs
         )
     elif method == &#34;normal_mapping&#34;:
         corrected = xr.apply_ufunc(
@@ -765,6 +775,7 @@ class XBiasCorrection(object):
             output_core_dims=[[dim]],
             output_dtypes=[dtype],
             kwargs={&#34;cdf_threshold&#34;: cdf_threshold},
+            **apply_ufunc_kwargs
         )
     elif method == &#34;basic_quantile&#34;:
         corrected = xr.apply_ufunc(
@@ -777,6 +788,7 @@ class XBiasCorrection(object):
             input_core_dims=[[dim], [dim], [dim]],
             output_core_dims=[[dim]],
             kwargs={&#34;modified&#34;: False},
+            **apply_ufunc_kwargs
         )
 
     elif method == &#34;modified_quantile&#34;:
@@ -790,6 +802,7 @@ class XBiasCorrection(object):
             input_core_dims=[[dim], [dim], [dim]],
             output_core_dims=[[dim]],
             kwargs={&#34;modified&#34;: True},
+            **apply_ufunc_kwargs
         )
 
     else:

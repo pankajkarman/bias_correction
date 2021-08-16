@@ -1,21 +1,25 @@
 _________________
 
-[![PyPI version](https://badge.fury.io/py/bias-correction.svg)](http://badge.fury.io/py/bias-correction)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://pypi.python.org/pypi/bias-correction/)
+[![PyPI](https://badge.fury.io/py/bias-correction.svg)](http://badge.fury.io/py/bias-correction)
+[![conda](https://img.shields.io/conda/vn/conda-forge/bias_correction.svg)](https://anaconda.org/conda-forge/bias_correction)
 [![Downloads](https://pepy.tech/badge/bias-correction)](https://pepy.tech/project/bias-correction)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://pypi.python.org/pypi/bias-correction/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-![conda](https://anaconda.org/conda-forge/bias_correction/badges/version.svg)
 _________________
 
 ### About
 
-The module `bias_correction` consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include [quantile mapping](https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/joc.2168), [modified quantile mapping](https://www.sciencedirect.com/science/article/abs/pii/S0034425716302000?via%3Dihub) , [scaled distribution mapping (Gamma and Normal Corrections)](https://www.hydrol-earth-syst-sci.net/21/2649/2017/). 
+The module `bias_correction` consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include [quantile mapping](https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/joc.2168), [modified quantile mapping](https://www.sciencedirect.com/science/article/abs/pii/S0034425716302000?via%3Dihub), [scaled distribution mapping (Gamma and Normal Corrections)](https://www.hydrol-earth-syst-sci.net/21/2649/2017/). 
 
 ### Installation
+
+Install using pip:
 
 ```bash
 pip install bias-correction
 ```
+
+Install using conda:
 
 ```bash
 conda install -c conda-forge bias_correction
