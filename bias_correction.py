@@ -44,6 +44,7 @@ Available methods include:
 - normal_mapping 
 """
 
+__version__ = "0.4"
 
 def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     cdf = ECDF(mod_data)
