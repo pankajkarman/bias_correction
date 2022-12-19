@@ -222,7 +222,8 @@ class BiasCorrection(object):
         else:
             raise Exception("Specify correct method for bias correction.")
 
-        self.corrected = pd.Series(corrected, index=self.sce_data.index)
+        # self.corrected = pd.Series(corrected, index=self.sce_data.index)
+        self.corrected = corrected
         return self.corrected
 
 
