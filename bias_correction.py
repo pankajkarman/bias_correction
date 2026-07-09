@@ -128,7 +128,8 @@ def gamma_correction(
             (np.zeros(expected_sce_raindays - len(sce_raindays)), initial)
         )
 
-    correction[sce_argsort[:expected_sce_raindays]] = initial
+    if expected_sce_raindays > 0:
+        correction[sce_argsort[-expected_sce_raindays:]] = initial
     # correction = pd.Series(correction, index=sce_data.index)
     return correction
 
@@ -222,7 +223,9 @@ class BiasCorrection(object):
         else:
             raise Exception("Specify correct method for bias correction.")
 
-        # self.corrected = pd.Series(corrected, index=self.sce_data.index)
+        if isinstance(self.sce_data, pd.Series):
+            corrected = pd.Series(corrected, index=self.sce_data.index)
+
         self.corrected = corrected
         return self.corrected
 
