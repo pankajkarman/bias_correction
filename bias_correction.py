@@ -112,7 +112,7 @@ from scipy.stats import gamma, norm
 from scipy.signal import detrend
 import xarray as xr
 
-__version__ = "0.4"
+__version__ = "0.5"
 
 def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     """
@@ -149,7 +149,7 @@ def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     corrected = quantile_correction(reference, model, scenario, modified=True)
     ```
     """
-    cdf = ECDF(mod_data)
+    cdf = ECDF(mod_data, side="left")
     p = cdf(sce_data) * 100
     cor = np.subtract(*[np.nanpercentile(x, p) for x in [obs_data, mod_data]])
     if modified:
