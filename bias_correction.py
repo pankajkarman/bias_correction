@@ -27,7 +27,7 @@ pip install git+https://github.com/pankajkarman/bias_correction.git
 
 ## Usage
 
-Use `BiasCorrection` for NumPy arrays or Pandas Series:
+Use `BiasCorrection` for one-dimensional NumPy arrays or Pandas Series:
 
 ```python
 from bias_correction import BiasCorrection
@@ -58,7 +58,8 @@ corrected = xbc.correct(method="modified_quantile")
 ```
 
 `reference` is the observed or trusted data, `model` is the model data over the
-reference period, and `scenario` is the model data to correct.
+reference period, and `scenario` is the model-period data to correct, such as a
+future projection or forecast.
 
 ## Examples by method
 
@@ -113,6 +114,17 @@ from scipy.signal import detrend
 import xarray as xr
 
 __version__ = "0.5"
+
+
+def _validate_1d_inputs(*arrays):
+    """Raise a clear error when the NumPy/Pandas API receives gridded input."""
+    for name, array in arrays:
+        if np.asarray(array).ndim != 1:
+            raise ValueError(
+                f"{name} must be one-dimensional. "
+                "Use XBiasCorrection for gridded or multidimensional data."
+            )
+
 
 def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     """
@@ -357,7 +369,7 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
 
 class BiasCorrection(object):
     """
-    Bias-correction wrapper for NumPy arrays and Pandas Series.
+    Bias-correction wrapper for one-dimensional NumPy arrays and Pandas Series.
 
     Parameters
     ----------
@@ -371,10 +383,14 @@ class BiasCorrection(object):
     Notes
     -----
     If `sce_data` is a Pandas `Series`, corrected output is returned as a
-    `Series` with the original index preserved.
+    `Series` with the original index preserved. Use `XBiasCorrection` for
+    gridded or other multidimensional data.
     """
 
     def __init__(self, obs_data, mod_data, sce_data):
+        _validate_1d_inputs(
+            ("obs_data", obs_data), ("mod_data", mod_data), ("sce_data", sce_data)
+        )
         self.obs_data = obs_data
         self.mod_data = mod_data
         self.sce_data = sce_data
@@ -567,6 +583,7 @@ class XBiasCorrection(object):
 
         else:
             raise Exception("Specify correct method for bias correction.")
+        corrected = self._restore_scenario_dims(corrected)
         self.corrected = corrected
         return self.corrected
 
@@ -578,3 +595,17 @@ class XBiasCorrection(object):
         elif isinstance(aa, xr.DataArray):
             dtype = aa.dtype
         return dtype
+
+    def _restore_scenario_dims(self, corrected):
+        """Move the core correction dimension back to the scenario dimension order."""
+        if isinstance(self.sce_data, xr.Dataset):
+            corrected = corrected.copy()
+            for name in corrected.data_vars:
+                if name in self.sce_data:
+                    corrected[name] = corrected[name].transpose(
+                        *self.sce_data[name].dims
+                    )
+            return corrected
+        if isinstance(self.sce_data, xr.DataArray):
+            return corrected.transpose(*self.sce_data.dims)
+        return corrected

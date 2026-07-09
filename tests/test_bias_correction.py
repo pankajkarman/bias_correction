@@ -81,6 +81,12 @@ class BiasCorrectionTests(unittest.TestCase):
         with self.assertRaises(Exception):
             BiasCorrection(data, data, data).correct(method="unknown")
 
+    def test_multidimensional_numpy_input_raises_clear_error(self):
+        data = np.array([[1.0, 2.0], [3.0, 4.0]])
+
+        with self.assertRaisesRegex(ValueError, "XBiasCorrection"):
+            BiasCorrection(data, data, data)
+
 
 class DistributionCorrectionTests(unittest.TestCase):
     def test_gamma_correction_returns_input_when_all_inputs_match(self):
@@ -89,6 +95,19 @@ class DistributionCorrectionTests(unittest.TestCase):
         corrected = gamma_correction(data, data, data, lower_limit=0.1)
 
         np.testing.assert_allclose(corrected, data)
+
+    def test_gamma_mapping_accepts_numpy_arrays(self):
+        obs_data = np.array([0.2, 0.4, 0.7, 1.1, 1.5, 2.0, 2.6, 3.3, 4.1, 5.0])
+        mod_data = np.array([0.3, 0.5, 0.8, 1.2, 1.7, 2.2, 2.8, 3.5, 4.3, 5.2])
+        sce_data = np.array([0.4, 0.6, 0.9, 1.3, 1.8, 2.4, 3.0, 3.7, 4.5, 5.5])
+
+        corrected = BiasCorrection(obs_data, mod_data, sce_data).correct(
+            method="gamma_mapping", lower_limit=0.1
+        )
+
+        self.assertIsInstance(corrected, np.ndarray)
+        self.assertEqual(corrected.shape, sce_data.shape)
+        self.assertTrue(np.isfinite(corrected).all())
 
     def test_normal_correction_returns_input_when_all_inputs_match(self):
         data = np.array([0.2, 0.4, 0.7, 1.1, 1.5, 2.0, 2.6, 3.3, 4.1, 5.0])
@@ -151,10 +170,66 @@ class XBiasCorrectionTests(unittest.TestCase):
             method="basic_quantile"
         )
 
-        self.assertEqual(corrected.dims, ("station", "time"))
+        self.assertEqual(corrected.dims, ("time", "station"))
         self.assertEqual(corrected["station"].to_numpy().tolist(), ["north", "south"])
+        np.testing.assert_allclose(corrected.to_numpy(), obs_data.to_numpy())
+
+    def test_all_methods_restore_multidimensional_xarray_dimension_order(self):
+        obs_data = xr.DataArray(
+            [
+                [0.2, 1.2],
+                [0.4, 1.4],
+                [0.7, 1.7],
+                [1.1, 2.1],
+                [1.5, 2.5],
+                [2.0, 3.0],
+                [2.6, 3.6],
+                [3.3, 4.3],
+                [4.1, 5.1],
+                [5.0, 6.0],
+            ],
+            dims=["time", "station"],
+            coords={"station": ["north", "south"]},
+        )
+        mod_data = obs_data + 0.1
+        sce_data = mod_data.copy()
+
+        for method in [
+            "basic_quantile",
+            "modified_quantile",
+            "gamma_mapping",
+            "normal_mapping",
+        ]:
+            with self.subTest(method=method):
+                corrected = XBiasCorrection(
+                    obs_data, mod_data, sce_data, dim="time"
+                ).correct(method=method)
+
+                self.assertEqual(corrected.dims, sce_data.dims)
+                self.assertEqual(
+                    corrected["station"].to_numpy().tolist(), ["north", "south"]
+                )
+
+    def test_dataset_output_preserves_scenario_dimension_order(self):
+        obs_data = xr.Dataset(
+            {
+                "tas": xr.DataArray(
+                    [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]],
+                    dims=["time", "station"],
+                    coords={"station": ["north", "south"]},
+                )
+            }
+        )
+        mod_data = xr.Dataset({"tas": obs_data["tas"] + 1.0})
+        sce_data = xr.Dataset({"tas": mod_data["tas"].copy()})
+
+        corrected = XBiasCorrection(obs_data, mod_data, sce_data, dim="time").correct(
+            method="basic_quantile"
+        )
+
+        self.assertEqual(corrected["tas"].dims, sce_data["tas"].dims)
         np.testing.assert_allclose(
-            corrected.transpose("time", "station").to_numpy(), obs_data.to_numpy()
+            corrected["tas"].to_numpy(), obs_data["tas"].to_numpy()
         )
 
 

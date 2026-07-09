@@ -7,10 +7,10 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 `bias_correction` provides bias-correction methods for one-dimensional NumPy/Pandas
-series and labeled Xarray objects. Xarray inputs can be multi-dimensional, such
-as `(time, lat, lon)` climate grids, as long as they include the time dimension
-used for correction. It is commonly used to adjust model or scenario data
-against a reference data set.
+series and labeled Xarray objects. Use `XBiasCorrection` for multi-dimensional
+or gridded data, such as `(time, lat, lon)` climate grids, as long as they
+include the time dimension used for correction. It is commonly used to adjust
+model or scenario data against a reference data set.
 
 Implemented methods include:
 
@@ -45,7 +45,7 @@ Latest documentation is available [here](https://pankajkarman.github.io/bias_cor
 
 ## Quickstart
 
-Use `BiasCorrection` for NumPy arrays or Pandas Series:
+Use `BiasCorrection` for one-dimensional NumPy arrays or Pandas Series:
 
 ```python
 import numpy as np
@@ -91,7 +91,8 @@ All methods compare three aligned data sets:
 
 - `obs_data` / `reference`: observed or trusted reference data.
 - `mod_data` / `model`: model data over the reference period.
-- `sce_data` / `scenario`: model data to correct.
+- `sce_data` / `scenario`: model-period data to correct, such as a future
+  projection or forecast.
 
 Choose a method with `correct(method=...)`:
 
@@ -107,9 +108,11 @@ and positive skew.
 then adds the scenario trend back into the corrected values.
 
 When `BiasCorrection` receives a Pandas `Series` as `sce_data`, it returns a
-`Series` with the original index preserved. `XBiasCorrection` preserves Xarray
-coordinates through `xr.apply_ufunc`. For multi-dimensional Xarray inputs, each
-input must include the correction dimension, usually `time`.
+`Series` with the original index preserved. `BiasCorrection` expects
+one-dimensional inputs; use `XBiasCorrection` for netCDF-style or gridded data.
+`XBiasCorrection` preserves Xarray coordinates and restores the corrected output
+to the original `sce_data` dimension order. For multi-dimensional Xarray inputs,
+each input must include the correction dimension, usually `time`.
 
 ## Examples by Method
 
