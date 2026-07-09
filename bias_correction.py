@@ -113,7 +113,7 @@ from scipy.stats import gamma, norm
 from scipy.signal import detrend
 import xarray as xr
 
-__version__ = "0.5"
+__version__ = "0.5.1"
 
 
 def _validate_1d_inputs(*arrays):
@@ -126,7 +126,73 @@ def _validate_1d_inputs(*arrays):
             )
 
 
-def quantile_correction(obs_data, mod_data, sce_data, modified=True):
+def _correction_skipna(
+    correction_func,
+    obs_data,
+    mod_data,
+    sce_data,
+    min_count=1,
+    **kwargs,
+):
+    """Run a correction on finite values and preserve NaNs in scenario output."""
+    obs_data = np.asarray(obs_data, dtype=float)
+    mod_data = np.asarray(mod_data, dtype=float)
+    sce_data = np.asarray(sce_data, dtype=float)
+
+    corrected = np.full(sce_data.shape, np.nan)
+    obs_data = obs_data[np.isfinite(obs_data)]
+    mod_data = mod_data[np.isfinite(mod_data)]
+    sce_mask = np.isfinite(sce_data)
+    finite_sce_data = sce_data[sce_mask]
+
+    if (
+        len(obs_data) < min_count
+        or len(mod_data) < min_count
+        or len(finite_sce_data) < min_count
+    ):
+        return corrected
+
+    corrected[sce_mask] = correction_func(
+        obs_data, mod_data, finite_sce_data, **kwargs
+    )
+    return corrected
+
+
+def _gamma_correction_skipna(
+    obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999
+):
+    """Run gamma correction on finite values, tolerating all-dry scenario cells."""
+    obs_data = np.asarray(obs_data, dtype=float)
+    mod_data = np.asarray(mod_data, dtype=float)
+    sce_data = np.asarray(sce_data, dtype=float)
+
+    corrected = np.full(sce_data.shape, np.nan)
+    obs_data = obs_data[np.isfinite(obs_data)]
+    mod_data = mod_data[np.isfinite(mod_data)]
+    sce_mask = np.isfinite(sce_data)
+    finite_sce_data = sce_data[sce_mask]
+
+    if len(obs_data) == 0 or len(mod_data) == 0 or len(finite_sce_data) == 0:
+        return corrected
+
+    if not np.any(finite_sce_data >= lower_limit):
+        corrected[sce_mask] = 0.0
+        return corrected
+
+    if not np.any(obs_data >= lower_limit) or not np.any(mod_data >= lower_limit):
+        return corrected
+
+    corrected[sce_mask] = gamma_correction(
+        obs_data,
+        mod_data,
+        finite_sce_data,
+        lower_limit=lower_limit,
+        cdf_threshold=cdf_threshold,
+    )
+    return corrected
+
+
+def quantile_correction(obs_data, mod_data, sce_data, modified=True, skipna=False):
     """
     Correct scenario data with empirical quantile mapping.
 
@@ -141,6 +207,9 @@ def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     modified : bool, default True
         If True, apply the modified quantile correction using the median and
         interquartile range adjustment. If False, apply basic quantile mapping.
+    skipna : bool, default False
+        If True, ignore non-finite values in `obs_data` and `mod_data`, correct
+        finite `sce_data` values, and preserve non-finite scenario values.
 
     Returns
     -------
@@ -161,6 +230,16 @@ def quantile_correction(obs_data, mod_data, sce_data, modified=True):
     corrected = quantile_correction(reference, model, scenario, modified=True)
     ```
     """
+    if skipna:
+        return _correction_skipna(
+            quantile_correction,
+            obs_data,
+            mod_data,
+            sce_data,
+            modified=modified,
+            skipna=False,
+        )
+
     cdf = ECDF(mod_data, side="left")
     p = cdf(sce_data) * 100
     cor = np.subtract(*[np.nanpercentile(x, p) for x in [obs_data, mod_data]])
@@ -179,7 +258,12 @@ def quantile_correction(obs_data, mod_data, sce_data, modified=True):
 
 
 def gamma_correction(
-    obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999
+    obs_data,
+    mod_data,
+    sce_data,
+    lower_limit=0.1,
+    cdf_threshold=0.9999999,
+    skipna=False,
 ):
     """
     Correct precipitation-like scenario data with gamma distribution mapping.
@@ -200,6 +284,9 @@ def gamma_correction(
         Minimum value considered a wet day.
     cdf_threshold : float, default 0.9999999
         Upper CDF bound used to avoid infinite distribution tails.
+    skipna : bool, default False
+        If True, ignore non-finite values in `obs_data` and `mod_data`, correct
+        finite `sce_data` values, and preserve non-finite scenario values.
 
     Returns
     -------
@@ -217,6 +304,15 @@ def gamma_correction(
     )
     ```
     """
+    if skipna:
+        return _gamma_correction_skipna(
+            obs_data,
+            mod_data,
+            sce_data,
+            lower_limit=lower_limit,
+            cdf_threshold=cdf_threshold,
+        )
+
     obs_raindays, mod_raindays, sce_raindays = [
         x[x >= lower_limit] for x in [obs_data, mod_data, sce_data]
     ]
@@ -284,7 +380,9 @@ def gamma_correction(
     return correction
 
 
-def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
+def normal_correction(
+    obs_data, mod_data, sce_data, cdf_threshold=0.9999999, skipna=False
+):
     """
     Correct scenario data with normal scaled distribution mapping.
 
@@ -301,6 +399,9 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
         Scenario/model data to correct.
     cdf_threshold : float, default 0.9999999
         Lower and upper CDF clipping threshold used to avoid infinite tails.
+    skipna : bool, default False
+        If True, ignore non-finite values in `obs_data` and `mod_data`, correct
+        finite `sce_data` values, and preserve non-finite scenario values.
 
     Returns
     -------
@@ -313,6 +414,17 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
     corrected = normal_correction(reference, model, scenario)
     ```
     """
+    if skipna:
+        return _correction_skipna(
+            normal_correction,
+            obs_data,
+            mod_data,
+            sce_data,
+            min_count=2,
+            cdf_threshold=cdf_threshold,
+            skipna=False,
+        )
+
     obs_len, mod_len, sce_len = [len(x) for x in [obs_data, mod_data, sce_data]]
     obs_mean, mod_mean, sce_mean = [x.mean() for x in [obs_data, mod_data, sce_data]]
     obs_detrended, mod_detrended, sce_detrended = [
@@ -396,7 +508,11 @@ class BiasCorrection(object):
         self.sce_data = sce_data
 
     def correct(
-        self, method="modified_quantile", lower_limit=0.1, cdf_threshold=0.9999999
+        self,
+        method="modified_quantile",
+        lower_limit=0.1,
+        cdf_threshold=0.9999999,
+        skipna=False,
     ):
         """
         Apply a bias-correction method.
@@ -409,6 +525,10 @@ class BiasCorrection(object):
             Wet-day threshold used by `gamma_mapping`.
         cdf_threshold : float, default 0.9999999
             CDF clipping threshold used by distribution mapping methods.
+        skipna : bool, default False
+            If True, ignore non-finite values in `obs_data` and `mod_data`,
+            correct finite `sce_data` values, and preserve non-finite scenario
+            values.
 
         Returns
         -------
@@ -431,19 +551,32 @@ class BiasCorrection(object):
                 self.sce_data,
                 lower_limit=lower_limit,
                 cdf_threshold=cdf_threshold,
+                skipna=skipna,
             )
         elif method == "normal_mapping":
             corrected = normal_correction(
-                self.obs_data, self.mod_data, self.sce_data, cdf_threshold=cdf_threshold
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                cdf_threshold=cdf_threshold,
+                skipna=skipna,
             )
         elif method == "basic_quantile":
             corrected = quantile_correction(
-                self.obs_data, self.mod_data, self.sce_data, modified=False
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                modified=False,
+                skipna=skipna,
             )
 
         elif method == "modified_quantile":
             corrected = quantile_correction(
-                self.obs_data, self.mod_data, self.sce_data, modified=True
+                self.obs_data,
+                self.mod_data,
+                self.sce_data,
+                modified=True,
+                skipna=skipna,
             )
 
         else:
@@ -487,6 +620,7 @@ class XBiasCorrection(object):
         method="modified_quantile",
         lower_limit=0.1,
         cdf_threshold=0.9999999,
+        skipna=False,
         vectorize=True,
         dask="parallelized",
         **apply_ufunc_kwargs
@@ -502,6 +636,10 @@ class XBiasCorrection(object):
             Wet-day threshold used by `gamma_mapping`.
         cdf_threshold : float, default 0.9999999
             CDF clipping threshold used by distribution mapping methods.
+        skipna : bool, default False
+            If True, ignore non-finite values in reference/model samples,
+            correct finite scenario values, and preserve non-finite scenario
+            values at each Xarray grid point.
         vectorize : bool, default True
             Passed to `xarray.apply_ufunc`.
         dask : str, default "parallelized"
@@ -523,7 +661,7 @@ class XBiasCorrection(object):
         corrected = xbc.correct(method="normal_mapping")
         ```
         """
-        dtype = self._set_dtype()
+        dtype = float if skipna else self._set_dtype()
         dim = self.dim
         if method == "gamma_mapping":
             corrected = xr.apply_ufunc(
@@ -536,7 +674,11 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
-                kwargs={"lower_limit": lower_limit, "cdf_threshold": cdf_threshold},
+                kwargs={
+                    "lower_limit": lower_limit,
+                    "cdf_threshold": cdf_threshold,
+                    "skipna": skipna,
+                },
                 **apply_ufunc_kwargs
             )
         elif method == "normal_mapping":
@@ -550,7 +692,7 @@ class XBiasCorrection(object):
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
                 output_dtypes=[dtype],
-                kwargs={"cdf_threshold": cdf_threshold},
+                kwargs={"cdf_threshold": cdf_threshold, "skipna": skipna},
                 **apply_ufunc_kwargs
             )
         elif method == "basic_quantile":
@@ -563,7 +705,7 @@ class XBiasCorrection(object):
                 dask=dask,
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
-                kwargs={"modified": False},
+                kwargs={"modified": False, "skipna": skipna},
                 **apply_ufunc_kwargs
             )
 
@@ -577,7 +719,7 @@ class XBiasCorrection(object):
                 dask=dask,
                 input_core_dims=[[dim], [dim], [dim]],
                 output_core_dims=[[dim]],
-                kwargs={"modified": True},
+                kwargs={"modified": True, "skipna": skipna},
                 **apply_ufunc_kwargs
             )
 

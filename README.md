@@ -114,6 +114,16 @@ one-dimensional inputs; use `XBiasCorrection` for netCDF-style or gridded data.
 to the original `sce_data` dimension order. For multi-dimensional Xarray inputs,
 each input must include the correction dimension, usually `time`.
 
+By default, correction methods preserve the underlying SciPy/statsmodels
+behavior and may raise when inputs contain NaNs. Pass `skipna=True` to ignore
+non-finite values in the reference/model samples, correct only finite scenario
+values, and keep NaNs in the scenario output. This is useful for masked gridded
+data, such as ocean cells in land-only climate variables:
+
+```python
+corrected = xbc.correct(method="normal_mapping", skipna=True)
+```
+
 ## Examples by Method
 
 The examples below use the same input arrays so the method differences are easy
