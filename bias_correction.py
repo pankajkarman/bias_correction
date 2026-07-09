@@ -1,29 +1,107 @@
 """
-This library consists of functions to perform bias correction of datasets to remove biases across datasets. Implemented methods include [quantile mapping](https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/joc.2168), [modified quantile mapping](https://www.sciencedirect.com/science/article/abs/pii/S0034425716302000?via%3Dihub) , [scaled distribution mapping (Gamma and Normal Corrections)](https://www.hydrol-earth-syst-sci.net/21/2649/2017/). 
+Bias-correction methods for NumPy/Pandas series and Xarray objects.
 
-### Installation
+The module adjusts scenario/model data against a trusted reference data set.
+Xarray inputs can be multi-dimensional, such as `(time, lat, lon)` climate
+grids, as long as they include the time dimension used for correction.
+Implemented methods include:
 
-```
+- `basic_quantile`: empirical quantile mapping.
+- `modified_quantile`: modified quantile mapping with median and IQR scaling.
+- `gamma_mapping`: scaled distribution mapping for non-negative,
+  precipitation-like data.
+- `normal_mapping`: scaled distribution mapping for approximately normally
+  distributed data.
+
+## Installation
+
+```bash
 pip install bias-correction
 ```
 
-### Usage
+Install the latest code directly from GitHub:
 
-`bias_correction` is easy to use. Just import:
-
-```python
-from bias_correction import BiasCorrection, XBiasCorrection
-```
-Instantiate the bias correction class as:
-```python
-bc = BiasCorrection(reference, model, data_to_be_corrected)
-xbc = XBiasCorrection(reference, model, data_to_be_corrected)
+```bash
+pip install git+https://github.com/pankajkarman/bias_correction.git
 ```
 
-Perform correction specifying the method to be used:
+## Usage
+
+Use `BiasCorrection` for NumPy arrays or Pandas Series:
+
 ```python
-corrected = bc.correct(method='gamma_mapping')
-corrected = xbc.correct(method='gamma_mapping')
+from bias_correction import BiasCorrection
+
+bc = BiasCorrection(reference, model, scenario)
+corrected = bc.correct(method="modified_quantile")
+```
+
+Use `XBiasCorrection` for Xarray `DataArray` or `Dataset` inputs:
+
+```python
+from bias_correction import XBiasCorrection
+
+xbc = XBiasCorrection(reference, model, scenario, dim="time")
+corrected = xbc.correct(method="gamma_mapping", lower_limit=0.1)
+```
+
+For multi-dimensional Xarray data, pass the name of the time dimension with
+`dim`. Corrections are applied along that dimension at each remaining grid point:
+
+```python
+reference = xr.DataArray(ref_values, dims=["time", "lat", "lon"])
+model = xr.DataArray(model_values, dims=["time", "lat", "lon"])
+scenario = xr.DataArray(scenario_values, dims=["time", "lat", "lon"])
+
+xbc = XBiasCorrection(reference, model, scenario, dim="time")
+corrected = xbc.correct(method="modified_quantile")
+```
+
+`reference` is the observed or trusted data, `model` is the model data over the
+reference period, and `scenario` is the model data to correct.
+
+## Examples by method
+
+```python
+import numpy as np
+from bias_correction import BiasCorrection
+
+reference = np.array([0.0, 0.2, 0.6, 1.0, 1.7, 2.4, 3.1, 4.0])
+model = np.array([0.0, 0.1, 0.4, 0.8, 1.3, 1.9, 2.5, 3.2])
+scenario = np.array([0.0, 0.3, 0.7, 1.2, 1.8, 2.6, 3.3, 4.5])
+
+bc = BiasCorrection(reference, model, scenario)
+
+basic = bc.correct(method="basic_quantile")
+modified = bc.correct(method="modified_quantile")
+gamma_corrected = bc.correct(method="gamma_mapping", lower_limit=0.1)
+normal_corrected = bc.correct(method="normal_mapping")
+```
+
+The same method names can be used with Xarray inputs:
+
+```python
+import xarray as xr
+from bias_correction import XBiasCorrection
+
+xreference = xr.DataArray(reference, dims=["time"])
+xmodel = xr.DataArray(model, dims=["time"])
+xscenario = xr.DataArray(scenario, dims=["time"])
+
+xbc = XBiasCorrection(xreference, xmodel, xscenario, dim="time")
+xcorrected = xbc.correct(method="modified_quantile")
+```
+
+Multi-dimensional Xarray grids work the same way when they include the
+correction dimension:
+
+```python
+reference = xr.DataArray(ref_values, dims=["time", "lat", "lon"])
+model = xr.DataArray(model_values, dims=["time", "lat", "lon"])
+scenario = xr.DataArray(scenario_values, dims=["time", "lat", "lon"])
+
+xbc = XBiasCorrection(reference, model, scenario, dim="time")
+corrected = xbc.correct(method="gamma_mapping", lower_limit=0.1)
 ```
 """
 
@@ -34,19 +112,43 @@ from scipy.stats import gamma, norm
 from scipy.signal import detrend
 import xarray as xr
 
-"""
-module for bias corrections. 
-Available methods include:
-
-- basic_quantile
-- modified quantile
-- gamma_mapping
-- normal_mapping 
-"""
-
 __version__ = "0.4"
 
 def quantile_correction(obs_data, mod_data, sce_data, modified=True):
+    """
+    Correct scenario data with empirical quantile mapping.
+
+    Parameters
+    ----------
+    obs_data : array-like
+        Reference or observed data.
+    mod_data : array-like
+        Model data over the reference period.
+    sce_data : array-like
+        Scenario/model data to correct.
+    modified : bool, default True
+        If True, apply the modified quantile correction using the median and
+        interquartile range adjustment. If False, apply basic quantile mapping.
+
+    Returns
+    -------
+    array-like
+        Corrected scenario data with the same shape as `sce_data`.
+
+    Examples
+    --------
+    Basic quantile mapping:
+
+    ```python
+    corrected = quantile_correction(reference, model, scenario, modified=False)
+    ```
+
+    Modified quantile mapping:
+
+    ```python
+    corrected = quantile_correction(reference, model, scenario, modified=True)
+    ```
+    """
     cdf = ECDF(mod_data)
     p = cdf(sce_data) * 100
     cor = np.subtract(*[np.nanpercentile(x, p) for x in [obs_data, mod_data]])
@@ -67,6 +169,42 @@ def quantile_correction(obs_data, mod_data, sce_data, modified=True):
 def gamma_correction(
     obs_data, mod_data, sce_data, lower_limit=0.1, cdf_threshold=0.9999999
 ):
+    """
+    Correct precipitation-like scenario data with gamma distribution mapping.
+
+    Values below `lower_limit` are treated as dry or zero events. Corrected
+    wet-day values are assigned back to the largest scenario values so dry-day
+    frequency is preserved according to the model/reference frequency ratio.
+
+    Parameters
+    ----------
+    obs_data : array-like
+        Reference or observed data.
+    mod_data : array-like
+        Model data over the reference period.
+    sce_data : array-like
+        Scenario/model data to correct.
+    lower_limit : float, default 0.1
+        Minimum value considered a wet day.
+    cdf_threshold : float, default 0.9999999
+        Upper CDF bound used to avoid infinite distribution tails.
+
+    Returns
+    -------
+    numpy.ndarray
+        Corrected scenario data with the same length as `sce_data`.
+
+    Examples
+    --------
+    ```python
+    corrected = gamma_correction(
+        reference,
+        model,
+        scenario,
+        lower_limit=0.1,
+    )
+    ```
+    """
     obs_raindays, mod_raindays, sce_raindays = [
         x[x >= lower_limit] for x in [obs_data, mod_data, sce_data]
     ]
@@ -135,6 +273,34 @@ def gamma_correction(
 
 
 def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
+    """
+    Correct scenario data with normal scaled distribution mapping.
+
+    Each input is detrended before fitting a normal distribution. The corrected
+    values are then shifted so the scenario trend is added back.
+
+    Parameters
+    ----------
+    obs_data : array-like
+        Reference or observed data.
+    mod_data : array-like
+        Model data over the reference period.
+    sce_data : array-like
+        Scenario/model data to correct.
+    cdf_threshold : float, default 0.9999999
+        Lower and upper CDF clipping threshold used to avoid infinite tails.
+
+    Returns
+    -------
+    numpy.ndarray
+        Corrected scenario data with the same length as `sce_data`.
+
+    Examples
+    --------
+    ```python
+    corrected = normal_correction(reference, model, scenario)
+    ```
+    """
     obs_len, mod_len, sce_len = [len(x) for x in [obs_data, mod_data, sce_data]]
     obs_mean, mod_mean, sce_mean = [x.mean() for x in [obs_data, mod_data, sce_data]]
     obs_detrended, mod_detrended, sce_detrended = [
@@ -190,6 +356,24 @@ def normal_correction(obs_data, mod_data, sce_data, cdf_threshold=0.9999999):
 
 
 class BiasCorrection(object):
+    """
+    Bias-correction wrapper for NumPy arrays and Pandas Series.
+
+    Parameters
+    ----------
+    obs_data : array-like
+        Reference or observed data.
+    mod_data : array-like
+        Model data over the reference period.
+    sce_data : array-like
+        Scenario/model data to correct.
+
+    Notes
+    -----
+    If `sce_data` is a Pandas `Series`, corrected output is returned as a
+    `Series` with the original index preserved.
+    """
+
     def __init__(self, obs_data, mod_data, sce_data):
         self.obs_data = obs_data
         self.mod_data = mod_data
@@ -198,6 +382,32 @@ class BiasCorrection(object):
     def correct(
         self, method="modified_quantile", lower_limit=0.1, cdf_threshold=0.9999999
     ):
+        """
+        Apply a bias-correction method.
+
+        Parameters
+        ----------
+        method : {"modified_quantile", "basic_quantile", "gamma_mapping", "normal_mapping"}
+            Correction method to apply.
+        lower_limit : float, default 0.1
+            Wet-day threshold used by `gamma_mapping`.
+        cdf_threshold : float, default 0.9999999
+            CDF clipping threshold used by distribution mapping methods.
+
+        Returns
+        -------
+        array-like or pandas.Series
+            Corrected scenario data.
+
+        Examples
+        --------
+        ```python
+        corrected = bc.correct(method="basic_quantile")
+        corrected = bc.correct(method="modified_quantile")
+        corrected = bc.correct(method="gamma_mapping", lower_limit=0.1)
+        corrected = bc.correct(method="normal_mapping")
+        ```
+        """
         if method == "gamma_mapping":
             corrected = gamma_correction(
                 self.obs_data,
@@ -231,6 +441,25 @@ class BiasCorrection(object):
 
 
 class XBiasCorrection(object):
+    """
+    Bias-correction wrapper for Xarray DataArray and Dataset objects.
+
+    Inputs may be one-dimensional or multi-dimensional. Each input must include
+    the core correction dimension, usually `time`; correction is applied along
+    that dimension while Xarray preserves the remaining coordinates.
+
+    Parameters
+    ----------
+    obs_data : xarray.DataArray or xarray.Dataset
+        Reference or observed data.
+    mod_data : xarray.DataArray or xarray.Dataset
+        Model data over the reference period.
+    sce_data : xarray.DataArray or xarray.Dataset
+        Scenario/model data to correct.
+    dim : str, default "time"
+        Core dimension over which the correction is applied.
+    """
+
     def __init__(self, obs_data, mod_data, sce_data, dim="time"):
         self.obs_data = obs_data
         self.mod_data = mod_data
@@ -246,6 +475,38 @@ class XBiasCorrection(object):
         dask="parallelized",
         **apply_ufunc_kwargs
     ):
+        """
+        Apply a bias-correction method with `xarray.apply_ufunc`.
+
+        Parameters
+        ----------
+        method : {"modified_quantile", "basic_quantile", "gamma_mapping", "normal_mapping"}
+            Correction method to apply.
+        lower_limit : float, default 0.1
+            Wet-day threshold used by `gamma_mapping`.
+        cdf_threshold : float, default 0.9999999
+            CDF clipping threshold used by distribution mapping methods.
+        vectorize : bool, default True
+            Passed to `xarray.apply_ufunc`.
+        dask : str, default "parallelized"
+            Dask mode passed to `xarray.apply_ufunc`.
+        **apply_ufunc_kwargs
+            Additional keyword arguments forwarded to `xarray.apply_ufunc`.
+
+        Returns
+        -------
+        xarray.DataArray or xarray.Dataset
+            Corrected scenario data with Xarray coordinates preserved.
+
+        Examples
+        --------
+        ```python
+        corrected = xbc.correct(method="basic_quantile")
+        corrected = xbc.correct(method="modified_quantile")
+        corrected = xbc.correct(method="gamma_mapping", lower_limit=0.1)
+        corrected = xbc.correct(method="normal_mapping")
+        ```
+        """
         dtype = self._set_dtype()
         dim = self.dim
         if method == "gamma_mapping":
@@ -310,6 +571,7 @@ class XBiasCorrection(object):
         return self.corrected
 
     def _set_dtype(self):
+        """Return the dtype used for Xarray `apply_ufunc` outputs."""
         aa = self.mod_data
         if isinstance(aa, xr.Dataset):
             dtype = aa[list(aa.data_vars)[0]].dtype

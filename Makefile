@@ -10,9 +10,7 @@ SHELL = bash
 
 
 doc:
-	pdoc -f --html $(PROJECT_NAME).py --output-dir docs
-	mv ./docs/$(PROJECT_DIR).html ./docs/index.html
-	rm -rf ./docs/$(PROJECT_DIR)
+	pdoc -o docs $(PROJECT_NAME).py
 	
 install:
 	python setup.py install
@@ -24,7 +22,7 @@ pypi:
 	twine upload --skip-existing dist/*
 	
 server:
-	pdoc --http : .
+	pdoc -n $(PROJECT_NAME).py
 	
 format:
 	@printf "Checking code style with black...\n"
